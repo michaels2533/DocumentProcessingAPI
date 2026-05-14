@@ -24,3 +24,6 @@ backend/uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# Spec files 
+.specstory/
