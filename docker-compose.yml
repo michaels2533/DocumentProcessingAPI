@@ -1,0 +1,60 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-docproc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docproc_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-docproc}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docproc}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  
+  # A test database for running test data on. 
+  test-db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: test_db
+    ports:
+      - "5434:5432" # Uses different port to avoid conflict with the main database.
+    volumes:
+      - testpgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_POSTGRES_USER:-testuser}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    profiles: ["test"] # only starts when you opt-in.
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/backend_app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/frontend_app
+      - /frontend_app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  testpgdata:
