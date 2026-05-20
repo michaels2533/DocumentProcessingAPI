@@ -825,3 +825,145 @@ Add a small hook in `do_run_migrations` that executes `CREATE EXTENSION IF NOT E
 ### TL;DR
 
 `DatabaseSessionManager.init()` enables `vector` at app boot, but **Alembic runs first** via `entrypoint.sh`. So you still need `op.execute("CREATE EXTENSION IF NOT EXISTS vector")` at the top of the initial migration's `upgrade()` — otherwise `alembic upgrade head` will fail on a fresh database before the lifespan hook ever runs.
+
+---
+
+_**User**_
+
+How would I execute the entrypoint script within docker container?
+
+---
+
+_**Agent (claude-opus-4-7)**_
+
+<think><details><summary>Thought Process</summary>
+ I need to look at the Dockerfile and docker-compose configuration to understand how the entrypoint script is set up and how to properly execute it within the container.</details></think>
+
+_**Agent (claude-opus-4-7)**_
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2">
+<details><summary>Tool use: **read_file_v2** • Read file: /Users/michael/Documents/Coding/Personal Projects/Document_Processing_API/backend/Dockerfile</summary>
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2"><details>
+<summary>Tool use: **read_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (claude-opus-4-7)**_
+
+<tool-use data-tool-type="search" data-tool-name="glob_file_search">
+<details>
+<summary>Tool use: **glob_file_search** • Searched codebase "" • **1** result in **1** directory</summary>
+
+Directory: **** (1 file)
+
+| File |
+|------|
+| `docker-compose.yml` |
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="search" data-tool-name="glob_file_search"><details>
+<summary>Tool use: **glob_file_search**</summary>
+
+</details></tool-use>
+
+_**Agent (claude-opus-4-7)**_
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2">
+<details><summary>Tool use: **read_file_v2** • Read file: /Users/michael/Documents/Coding/Personal Projects/Document_Processing_API/docker-compose.yml</summary>
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2"><details>
+<summary>Tool use: **read_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (claude-opus-4-7)**_
+
+<think><details><summary>Thought Process</summary>
+ I'm thinking through what the user might be asking about—whether they want to know how the entrypoint runs automatically when the container starts, how to manually trigger it inside a running container, or how to execute it as a one-off command. I should cover these different scenarios in my response.</details></think>
+
+_**Agent (claude-opus-4-7)**_
+
+The entrypoint is already wired up as the container's `CMD`, so in normal usage you don't run it manually — it executes automatically whenever the `backend` container starts:
+
+```13:13:backend/Dockerfile
+CMD ["/backend_app/entrypoint.sh"]
+```
+
+That means `docker compose up` is effectively "execute the entrypoint script."
+
+### Normal startup (most common)
+
+From the repo root:
+
+```bash
+docker compose up --build
+# or detached:
+docker compose up -d --build
+```
+
+The first time you build, Compose will build the image, start `db`, wait for it to be healthy (`pg_isready`), then start `backend`, which fires `entrypoint.sh` → `alembic upgrade head` → `uvicorn`.
+
+To rebuild only the backend after code changes that affect dependencies:
+
+```bash
+docker compose up -d --build backend
+```
+
+### Re-running the entrypoint inside an already-running container
+
+If the backend is up and you want to re-execute the script (e.g. after adding a new Alembic revision and you'd rather not restart):
+
+```bash
+docker compose exec backend /backend_app/entrypoint.sh
+```
+
+Note: this will try to start a *second* Uvicorn on port 8000 inside the same container and fail. So in practice, what you actually want is to run just the piece you care about, not the whole script.
+
+### Running just the migrations (recommended for schema changes)
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+Or generate a new revision:
+
+```bash
+docker compose exec backend alembic revision --autogenerate -m "initial schema with hybrid search"
+```
+
+Since `./backend` is bind-mounted into `/backend_app` (see `volumes:` in `docker-compose.yml`), the generated revision file under `app/alembic/versions/` will appear on your host immediately — no need to copy it out.
+
+### Running the entrypoint as a one-off (no port collision)
+
+If you want a clean run of the entrypoint without an already-running backend:
+
+```bash
+docker compose run --rm --service-ports backend /backend_app/entrypoint.sh
+```
+
+`--rm` cleans up the throwaway container when it exits, `--service-ports` re-publishes 8000 so you can hit the API.
+
+### Restart cycle (most pragmatic for "I changed the entrypoint")
+
+```bash
+docker compose restart backend
+# or, to see logs:
+docker compose up backend
+```
+
+### TL;DR
+
+You almost never invoke `entrypoint.sh` directly — `docker compose up` does it. When you specifically want to run migrations, use:
+
+```bash
+docker compose exec backend alembic upgrade head
+```

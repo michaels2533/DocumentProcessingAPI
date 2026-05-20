@@ -19,6 +19,7 @@ interface Props {
 
 export default function SearchPanel({ onSelect }: Props) {
   const [query, setQuery] = useState("");
+  const [keyword, setKeyword] = useState("");
   const [docType, setDocType] = useState("");
   const [results, setResults] = useState<DocumentSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,7 @@ export default function SearchPanel({ onSelect }: Props) {
     try {
       const data = await searchDocuments({
         query: query.trim(),
+        keyword: keyword.trim() || undefined,
         doc_type: docType || undefined,
         top_k: 10,
       });
@@ -61,6 +63,13 @@ export default function SearchPanel({ onSelect }: Props) {
           placeholder="Describe what you're looking for..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+        />
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Keyword must appear (optional)"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
         />
         <select
           className="search-filter"
@@ -98,7 +107,12 @@ export default function SearchPanel({ onSelect }: Props) {
                   </span>
                   {doc.similarity != null && (
                     <span className="similarity-badge">
-                      {(doc.similarity * 100).toFixed(1)}% match
+                      {(doc.similarity * 100).toFixed(1)}% similarity
+                    </span>
+                  )}
+                  {doc.fts_rank != null && (
+                    <span className="fts-rank-badge">
+                      FTS {doc.fts_rank.toFixed(3)}
                     </span>
                   )}
                 </div>

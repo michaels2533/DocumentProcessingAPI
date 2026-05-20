@@ -49,3 +49,20 @@
   padding: 2px 8px;
   border-radius: 999px;
 }
+
+.fts-rank-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.similarity-badge + .fts-rank-badge {
+  margin-left: 6px;
+}
+
+.fts-rank-badge:not(.similarity-badge + .fts-rank-badge) {
+  margin-left: auto;
+}

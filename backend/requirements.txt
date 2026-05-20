@@ -6,10 +6,11 @@ pgvector==0.3.6
 python-multipart==0.0.20
 python-dotenv==1.0.1
 openai==1.58.1
+anthropic==0.40.0
 PyMuPDF==1.25.1
 pydantic==2.10.4
 pydantic-settings==2.7.1
 alembic==1.14.1
-pytest==9.0.3
-pytest-asyncio==0.25.2
+pytest
+pytest-asyncio
 httpx==0.28.1

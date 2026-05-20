@@ -21,7 +21,7 @@ export async function uploadDocument(file: File): Promise<DocumentDetail> {
 }
 
 export async function listDocuments(): Promise<DocumentSummary[]> {
-  return request<DocumentSummary[]>(BASE);
+  return request<DocumentSummary[]>(`${BASE}/`);
 }
 
 export async function getDocument(id: string): Promise<DocumentDetail> {

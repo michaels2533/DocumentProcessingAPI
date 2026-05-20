@@ -13,6 +13,7 @@ export interface DocumentSummary {
   entities: Entities;
   created_at: string;
   similarity?: number;
+  fts_rank?: number;
 }
 
 export interface DocumentDetail extends DocumentSummary {
@@ -21,6 +22,8 @@ export interface DocumentDetail extends DocumentSummary {
 
 export interface SearchRequest {
   query: string;
+  keyword?: string;
+  semantic_weight?: number;
   doc_type?: string;
   entity_filters?: Record<string, string>;
   top_k?: number;

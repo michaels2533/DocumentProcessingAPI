@@ -10,17 +10,67 @@ This deployable API processes and analyzes documents using AI then stores them i
 | Database | PostgreSQL 16 + pgvector |
 | Migrations | Alembic |
 | Testing | Pytest + pytest-asyncio + httpx |
-| AI | OpenAI GPT-4o-mini (classification) + text-embedding-3-small (embeddings) |
+| AI | Pluggable chat provider (OpenAI / Anthropic / Ollama) + text-embedding-3-small for embeddings |
 | PDF parsing | PyMuPDF (text-based PDFs) |
 
 ## Pipeline
 
 1. **Upload** -- PDF uploaded via React frontend to FastAPI backend
 2. **Extract** -- PyMuPDF extracts raw text (no OCR, text-based PDFs only)
-3. **Classify** -- GPT-4o-mini classifies the document (`medical_record`, `legal_filing`, `billing`, `correspondence`, `other`) and extracts entities (person names, dates, dollar amounts, medical conditions, organizations)
-4. **Embed** -- text-embedding-3-small generates a 1536-dimension vector
+3. **Classify** -- The configured chat provider (OpenAI / Anthropic / Ollama) classifies the document (`medical_record`, `legal_filing`, `billing`, `correspondence`, `other`) and extracts entities (person names, dates, dollar amounts, medical conditions, organizations)
+4. **Embed** -- text-embedding-3-small generates a 1536-dimension vector (locked at deploy time)
 5. **Store** -- Everything saved in a single PostgreSQL table: raw text, doc_type, entities (JSONB), embedding (pgvector)
 6. **Search** -- pgvector cosine similarity search with optional SQL filtering on doc_type and JSONB entity fields
+
+## LLM Provider Abstraction
+
+Chat/classification and embeddings are deliberately separated:
+
+| Concern | Swappable? | Where |
+|---------|------------|-------|
+| Chat / classification | **Yes**, at runtime via `LLM_PROVIDER` | `app/services/llm/` |
+| Embeddings | **No**, locked at deploy time | `app/services/embedding_service.py` |
+
+**Why lock embeddings?** Every row in `documents.embedding` was produced by one specific model + dimension. Mixing vectors from different models in a single `vector(N)` column silently corrupts cosine similarity. Changing the embedding model is a schema/data migration, not a config flip.
+
+**Why make chat swappable?** Classification is a stateless, per-row call — switching providers does not invalidate any stored data, so picking a provider per environment (cost, latency, privacy) is a pure runtime choice.
+
+### Supported chat providers
+
+| `LLM_PROVIDER` | SDK | Default model | Notes |
+|----------------|-----|---------------|-------|
+| `openai` *(default)* | `openai` | `gpt-4o-mini` | Native JSON mode via `response_format`. |
+| `anthropic` | `anthropic` | `claude-3-5-haiku-latest` | Uses assistant-prefill (`{`) to constrain output to JSON. |
+| `ollama` | `httpx` -> local server | `llama3.1:8b` | Runs entirely on-host. No document text leaves the machine. Uses Ollama's `format=json`. |
+
+### Switching providers
+
+Set `LLM_PROVIDER` in `.env` and restart the backend. Each provider also has its own model override and credential vars (see `.env.example`).
+
+```bash
+# OpenAI (default)
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_CHAT_MODEL=gpt-4o-mini
+
+# Anthropic
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_CHAT_MODEL=claude-3-5-haiku-latest
+
+# Ollama (local, no data leaves the host)
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_CHAT_MODEL=llama3.1:8b
+```
+
+`OPENAI_API_KEY` is always required, because the embedding model is OpenAI-hosted.
+
+### Adding a new chat provider
+
+1. Implement `ChatProvider` (`app/services/llm/base.py`) — a single `complete_json` method.
+2. Register the new provider in `app/services/llm/factory.py::get_chat_provider`.
+3. Add any new settings to `app/core/config.py::Settings` and `.env.example`.
 
 ## Database Schema (ERD)
 
@@ -100,6 +150,12 @@ cp .env.example .env
 
 # Start everything
 docker compose up --build
+
+# Generate an initial migration via Alembic(only if app/alembic/versions is empty)
+docker compose exec backend alembic revision --autogenerate -m "initial schema" 
+
+# Manually edit the revision to enable the pgvector extension.
+op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 ```
 
 ### Services
@@ -195,7 +251,12 @@ async def test_upload_endpoint(client):
 │   │   ├── models/        # SQLAlchemy models
 │   │   ├── routers/       # FastAPI route handlers
 │   │   ├── schemas/       # Pydantic request/response schemas
-│   │   ├── services/      # Business logic (PDF, OpenAI, document processing)
+│   │   ├── services/
+│   │   │   ├── llm/                    # Swappable chat providers (OpenAI/Anthropic/Ollama)
+│   │   │   ├── classification_service.py  # Provider-agnostic classify+extract
+│   │   │   ├── embedding_service.py    # Locked-at-deploy embedding model
+│   │   │   ├── document_service.py     # Upload/list/get/search orchestration
+│   │   │   └── pdf_service.py          # PyMuPDF text extraction
 │   │   └── main.py        # FastAPI app entrypoint
 │   ├── tests/
 │   │   └── conftest.py    # Shared pytest fixtures (db_session, client)
@@ -221,7 +282,11 @@ Defined in `.env` (see `.env.example` for the full list):
 
 | Variable | Purpose |
 |----------|---------|
-| `OPENAI_API_KEY` | API key for GPT-4o-mini and embeddings |
+| `OPENAI_API_KEY` | API key for embeddings (always required) and OpenAI chat |
+| `LLM_PROVIDER` | Chat/classification provider: `openai` (default), `anthropic`, or `ollama` |
+| `OPENAI_CHAT_MODEL` | Chat model used when `LLM_PROVIDER=openai` |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_CHAT_MODEL` | Credentials + model for `LLM_PROVIDER=anthropic` |
+| `OLLAMA_BASE_URL` / `OLLAMA_CHAT_MODEL` | Server URL + model for `LLM_PROVIDER=ollama` |
 | `DATABASE_URL` | Async Postgres URL for the app database |
 | `TEST_DATABASE_URL` | Async Postgres URL for the test database |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | App DB credentials used by the `db` service |

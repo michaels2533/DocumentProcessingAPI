@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document import Document
 from app.services.pdf_service import extract_text
-from app.services.openai_service import classify_and_extract, generate_embedding
+from app.services.classification_service import classify_and_extract
+from app.services.embedding_service import generate_embedding
 from app.schemas.document import DocumentSummary, Entities, SearchRequest
 
 
@@ -71,7 +72,9 @@ async def search_documents(db: AsyncSession, request: SearchRequest) -> list[Doc
         for i, (key, value) in enumerate(request.entity_filters.items()):
             safe_key = f"ent_key_{i}"
             safe_val = f"ent_val_{i}"
-            entity_clauses += f" AND entities->:{safe_key} @> to_jsonb(:{safe_val}::text)"
+            entity_clauses += (
+                f" AND entities -> :{safe_key} @> to_jsonb(CAST(:{safe_val} AS text))"
+            )
             params[safe_key] = key
             params[safe_val] = value
 
@@ -90,10 +93,10 @@ async def search_documents(db: AsyncSession, request: SearchRequest) -> list[Doc
             d.doc_type,
             d.entities,
             d.created_at,
-            1 - (d.embedding <=> :query_vec::vector) AS similarity,
+            1 - (d.embedding <=> CAST(:query_vec AS vector)) AS similarity,
             ts_rank(d.raw_text_tsv, q.tsq) AS fts_rank,
             (
-                :alpha * (1 - (d.embedding <=> :query_vec::vector))
+                :alpha * (1 - (d.embedding <=> CAST(:query_vec AS vector)))
                 + (1 - :alpha) * ts_rank(d.raw_text_tsv, q.tsq)
             ) AS score
         FROM documents d, q
