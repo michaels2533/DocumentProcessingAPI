@@ -26,4 +26,4 @@ backend/uploads/
 Thumbs.db
 
 # Spec files 
-.specstory/
+specstory/
