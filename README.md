@@ -98,31 +98,6 @@ OLLAMA_CHAT_MODEL=llama3.1:8b
 The MVP is intentionally a **single-table, denormalized design**. Every uploaded PDF becomes one row in `documents`. Extracted entities are stored as embedded JSONB rather than a separate table, and the OpenAI embedding lives in a `pgvector` column on the same row. This keeps the read path for search to a single index scan + filter and avoids joins on the hot path.
 
 ## ERD Diagram
-```mermaid
-    DOCUMENTS {
-        uuid          id            PK "default gen_random_uuid()"
-        varchar_512   filename      "original upload name"
-        bytea         pdf_bytes     "persisted upload; cleared when status='ready'"
-        text          raw_text      "PyMuPDF extracted text (NULL until processed)"
-        varchar_50    doc_type      "B-tree indexed; one of: medical_record, legal_filing, billing, correspondence, other"
-        jsonb         entities      "embedded Entities object (see below); NULL until processed"
-        vector_1536   embedding     "pgvector; cosine similarity search; NULL until processed"
-        varchar_20    status        "lifecycle: pending | processing | ready | failed"
-        text          error         "exception text if status='failed'"
-        timestamptz   processed_at  "set when status transitions to ready"
-        timestamptz   created_at    "default now()"
-    }
-
-    ENTITIES_JSONB {
-        text_array person_names        "extracted by GPT-4o-mini"
-        text_array dates               "extracted by GPT-4o-mini"
-        text_array dollar_amounts      "extracted by GPT-4o-mini"
-        text_array medical_conditions  "extracted by GPT-4o-mini"
-        text_array organizations       "extracted by GPT-4o-mini"
-    }
-
-    DOCUMENTS ||--|| ENTITIES_JSONB : "embeds as JSONB"
-```
 ![ERDPhoto](assets/Screenshot%202026-05-04%20at%203.55.22 PM.png)
 ![ERDPhoto2](assets/Screenshot%202026-05-04%20at%203.56.06 PM.png)
 
@@ -211,24 +186,9 @@ op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 | `GET` | `/api/documents/{id}` | `200` + full doc incl. `status` & `error` | Poll this until `status == "ready"`. |
 | `POST` | `/api/documents/search` | `200` + ranked results | Hybrid pgvector + FTS search; only returns `status="ready"` rows. |
 
-### Async upload flow
+### Async upload Sequence Diagram
 
-```
-client                API                Redis               Worker             Postgres
-  │                    │                   │                    │                   │
-  │── POST /upload ───►│                   │                    │                   │
-  │                    │── INSERT pending,│                    │                   │
-  │                    │   pdf_bytes ────────────────────────────────────────────►│
-  │                    │── enqueue_job ──►│                    │                   │
-  │◄── 202 {id} ───────│                   │                    │                   │
-  │                    │                   │── pop job ───────►│                   │
-  │                    │                   │                    │── UPDATE         │
-  │                    │                   │                    │   status=processing─►│
-  │                    │                   │                    │── extract+LLM+embed │
-  │                    │                   │                    │── UPDATE status=ready─►│
-  │── GET /{id} ──────►│                   │                    │                   │
-  │◄── status=ready ───│                   │                    │                   │
-```
+![SequenceDiagram](assets/Sequence%20diagram.png)
 
 ### Search Request Body
 
