@@ -1,6 +1,7 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { uploadDocument } from "../api/client";
-import type { DocumentDetail } from "../types/document";
+import { useDocumentStatus } from "../hooks/useDocumentStatus";
+import type { DocumentJob, DocumentStatus } from "../types/document";
 import EntityBadges from "./EntityBadges";
 import "./UploadPanel.css";
 
@@ -8,31 +9,62 @@ interface Props {
   onComplete: () => void;
 }
 
+// Human-readable label + CSS modifier for each lifecycle state.
+const STATUS_COPY: Record<
+  DocumentStatus,
+  { label: string; hint: string; modifier: string }
+> = {
+  pending: {
+    label: "Queued",
+    hint: "Waiting for a worker to pick up the job...",
+    modifier: "pending",
+  },
+  processing: {
+    label: "Processing",
+    hint: "Extracting text, classifying, and embedding...",
+    modifier: "processing",
+  },
+  ready: {
+    label: "Ready",
+    hint: "Done.",
+    modifier: "ready",
+  },
+  failed: {
+    label: "Failed",
+    hint: "The pipeline could not finish.",
+    modifier: "failed",
+  },
+};
+
 export default function UploadPanel({ onComplete }: Props) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<DocumentDetail | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [job, setJob] = useState<DocumentJob | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Drives the polling loop once we have a job id.
+  const { doc, status, isPolling, pollError } = useDocumentStatus(job?.id ?? null);
+
   const handleFile = useCallback(async (file: File) => {
-    setError(null);
-    setResult(null);
+    setUploadError(null);
+    setJob(null);
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Please upload a PDF file.");
+      setUploadError("Please upload a PDF file.");
       return;
     }
     setUploading(true);
     try {
-      const doc = await uploadDocument(file);
-      setResult(doc);
+      const created = await uploadDocument(file);
+      setJob(created);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Upload failed.");
+      setUploadError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
   }, []);
 
+  // Once we have a job, reset the drop zone for the next upload.
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -43,17 +75,30 @@ export default function UploadPanel({ onComplete }: Props) {
     [handleFile]
   );
 
+  // When the pipeline successfully completes, refresh the documents list in
+  // the background so the user sees it the moment they switch tabs.
+  const completedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (status === "ready" && job && completedFor.current !== job.id) {
+      completedFor.current = job.id;
+      onComplete();
+    }
+  }, [status, job, onComplete]);
+
+  const showSpinner = uploading || (job !== null && isPolling);
+  const copy = STATUS_COPY[status];
+
   return (
     <div className="upload-panel">
       <div
-        className={`drop-zone ${dragging ? "dragging" : ""} ${uploading ? "busy" : ""}`}
+        className={`drop-zone ${dragging ? "dragging" : ""} ${showSpinner ? "busy" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !showSpinner && inputRef.current?.click()}
       >
         <input
           ref={inputRef}
@@ -65,10 +110,12 @@ export default function UploadPanel({ onComplete }: Props) {
             if (f) handleFile(f);
           }}
         />
-        {uploading ? (
+        {showSpinner ? (
           <div className="upload-spinner">
             <div className="spinner" />
-            <span>Processing document...</span>
+            <span>
+              {uploading ? "Uploading..." : `${copy.label}: ${copy.hint}`}
+            </span>
           </div>
         ) : (
           <>
@@ -81,17 +128,54 @@ export default function UploadPanel({ onComplete }: Props) {
         )}
       </div>
 
-      {error && <div className="upload-error">{error}</div>}
+      {uploadError && <div className="upload-error">{uploadError}</div>}
+      {pollError && <div className="upload-error">{pollError}</div>}
 
-      {result && (
+      {/* In-flight job indicator (queued / processing) */}
+      {job && !uploading && !pollError && status !== "ready" && status !== "failed" && (
+        <div className="upload-job">
+          <span className="job-filename">{job.filename}</span>
+          <span className={`status-pill status-${copy.modifier}`}>{copy.label}</span>
+        </div>
+      )}
+
+      {/* Terminal: failed */}
+      {doc && doc.status === "failed" && (
+        <div className="upload-result upload-result-failed">
+          <div className="result-header">
+            <h3>{doc.filename}</h3>
+            <span className={`status-pill status-failed`}>Failed</span>
+          </div>
+          <p className="upload-error" style={{ marginTop: 12 }}>
+            {doc.error ?? "Unknown error."}
+          </p>
+          <div className="result-actions">
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setJob(null);
+                completedFor.current = null;
+              }}
+            >
+              Try another file
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Terminal: ready */}
+      {doc && doc.status === "ready" && (
         <div className="upload-result">
           <div className="result-header">
-            <h3>{result.filename}</h3>
-            <span className={`doc-type-badge ${result.doc_type}`}>
-              {result.doc_type.replace("_", " ")}
-            </span>
+            <h3>{doc.filename}</h3>
+            {doc.doc_type && (
+              <span className={`doc-type-badge ${doc.doc_type}`}>
+                {doc.doc_type.replace("_", " ")}
+              </span>
+            )}
+            <span className="status-pill status-ready">Ready</span>
           </div>
-          <EntityBadges entities={result.entities} />
+          {doc.entities && <EntityBadges entities={doc.entities} />}
           <div className="result-actions">
             <button className="btn-primary" onClick={onComplete}>
               View all documents

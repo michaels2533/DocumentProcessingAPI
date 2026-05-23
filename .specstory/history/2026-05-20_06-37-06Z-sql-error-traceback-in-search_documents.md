@@ -82,4 +82,107 @@ _**Agent (claude-opus-4-7)**_
 <think><details><summary>Thought Process</summary>
  I'm looking at the SQL generation on line 75 where the bind parameter syntax is constructed—the f-string creates `:ent_key_0` which should be correct, but something's still going wrong with how the parameters are being passed.
 
-The real issue is that only 3 parameters are being sent (`'Western Governor'`, `0.7`, `10`) when the SQL contains `:query_vec`, `:keyword`, `:alpha`, and `:top_k`. SQLAlchemy is converting some named parameters to asyncpg's positional syntax (`$1`, `$2`, `$3`), but leaving others like `:query_vec` un</details></think>
+The real issue is that only 3 parameters are being sent (`'Western Governor'`, `0.7`, `10`) when the SQL contains `:query_vec`, `:keyword`, `:alpha`, and `:top_k`. SQLAlchemy is converting some named parameters to asyncpg's positional syntax (`$1`, `$2`, `$3`), but leaving others like `:query_vec` unresolved in the SQL string. The problem might be that when SQLAlchemy encounters `:query_vec::vector`, it's getting confused by the double colon cast syntax and not properly recognizing it as a bind parameter. I'm realizing the `params` dict only contains three values when logged, which means SQLAlchemy isn't recognizing `query_vec` as a bind parameter at all—it's probably not being included in the parameter extraction, possibly due to how the string representation of the embedding is being handled or a parsing issue with the `:query_vec::vector` syntax.</details></think>
+
+_**Agent (claude-opus-4-7)**_
+
+Found the issue. SQLAlchemy's `text()` bind parameter regex deliberately ignores `:name` when it's followed by another `:` (so that PostgreSQL `::cast` syntax doesn't get treated as a bind). So `:query_vec::vector` is being skipped entirely as a bind param — that's why the compiled SQL still has the literal `:query_vec::vector` and only `:keyword`, `:alpha`, `:top_k` got rewritten to `$1`, `$2`, `$3`.
+
+The fix is to wrap the bind in parentheses (or use `CAST(...)`) so it's no longer directly adjacent to `::`.
+
+_**Agent (claude-opus-4-7)**_
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2">
+
+<details><summary>Tool use: **edit_file_v2** • Edit file: /Users/michael/Documents/Coding/Personal Projects/Document_Processing_API/backend/app/services/document_service.py</summary>
+
+</details>
+
+</tool-use>
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2"><details>
+<summary>Tool use: **edit_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (claude-opus-4-7)**_
+
+There's also a latent bug in the entity filter construction at line 75 — `f" AND entities->:{safe_key} @> to_jsonb(:{safe_val}::text)"` produces `entities->:ent_key_0` (a bind right after `->`, which is fine) but `to_jsonb(:ent_val_0::text)` has the same `:name::cast` problem and will fail the moment a caller passes `entity_filters`. Let me fix that too while we're here.
+
+_**Agent (claude-opus-4-7)**_
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2">
+
+<details><summary>Tool use: **edit_file_v2** • Edit file: /Users/michael/Documents/Coding/Personal Projects/Document_Processing_API/backend/app/services/document_service.py</summary>
+
+</details>
+
+</tool-use>
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2"><details>
+<summary>Tool use: **edit_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (claude-opus-4-7)**_
+
+<tool-use data-tool-type="unknown" data-tool-name="read_lints">
+<details>
+<summary>Tool use: **read_lints**</summary>
+
+
+Parameters:
+
+```json
+{
+  "paths": [
+    "/Users/michael/Documents/Coding/Personal Projects/Document_Processing_API/backend/app/services/document_service.py"
+  ]
+}
+```
+Result:
+
+```json
+{
+  "linterErrorsByFile": [
+    {
+      "relativeWorkspacePath": "/Users/michael/Documents/Coding/Personal Projects/Document_Processing_API/backend/app/services/document_service.py"
+    }
+  ]
+}
+```
+Status: **completed**
+
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="unknown" data-tool-name="read_lints"><details>
+<summary>Tool use: **read_lints**</summary>
+
+</details></tool-use>
+
+_**Agent (claude-opus-4-7)**_
+
+### What was happening
+
+The traceback shows the SQL reaching Postgres with `:query_vec::vector` still in it, and only 3 parameters bound (`'Western Governor', 0.7, 10`). Postgres then chokes on the literal `:` because it expects `$N` placeholders from asyncpg.
+
+The root cause is in SQLAlchemy's `text()` parameter parsing. To avoid mis-detecting Postgres `::` casts, its bind-parameter regex skips any `:name` that is immediately followed by another `:`. So in:
+
+```91:99:backend/app/services/document_service.py
+            1 - (d.embedding <=> :query_vec::vector) AS similarity,
+            ts_rank(d.raw_text_tsv, q.tsq) AS fts_rank,
+            (
+                :alpha * (1 - (d.embedding <=> :query_vec::vector))
+                + (1 - :alpha) * ts_rank(d.raw_text_tsv, q.tsq)
+            ) AS score
+```
+
+…both `:query_vec::vector` occurrences were silently dropped from the bind map, but the text was passed through verbatim — which is exactly what we see in the rendered SQL in the error.
+
+### The fix
+
+Use explicit `CAST(:query_vec AS vector)` so the bind isn't directly adjacent to `::`. Same fix applied to `:ent_val_N::text` in the entity-filter builder, which would have hit the same error as soon as anyone supplied `entity_filters`.
+
+Restart the backend (or just let the dev reloader pick it up) and the search endpoint should work.

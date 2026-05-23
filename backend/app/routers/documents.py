@@ -1,10 +1,13 @@
 from uuid import UUID
 
+from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
+from app.core.queue import get_arq_pool
 from app.schemas.document import (
+    DocumentJobResponse,
     DocumentResponse,
     DocumentSummary,
     Entities,
@@ -12,7 +15,7 @@ from app.schemas.document import (
     SearchResponse,
 )
 from app.services.document_service import (
-    process_document,
+    enqueue_document,
     get_document,
     list_documents,
     search_documents,
@@ -21,33 +24,47 @@ from app.services.document_service import (
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.post("/upload", response_model=DocumentResponse, status_code=201)
+# Name of the Arq task in `app.workers.tasks`. Kept as a constant so the
+# router doesn't have to import the worker module (which would pull arq's
+# CLI deps into the API process unnecessarily).
+_PROCESS_DOCUMENT_TASK = "process_document_job"
+
+
+@router.post(
+    "/upload",
+    response_model=DocumentJobResponse,
+    status_code=202,
+)
 async def upload_document(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db_session),
+    arq: ArqRedis = Depends(get_arq_pool),
 ):
-  # Checks whether the received file exists or is a pdf file type.
+    """Accept a PDF, persist it as a `pending` document, and enqueue the pipeline.
+
+    Returns immediately with `202 Accepted` and the new document id. Clients
+    poll `GET /documents/{id}` until `status == "ready"` (or `"failed"`).
+    """
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
     pdf_bytes = await file.read()
 
-    # Limits file size to 20MB
     if len(pdf_bytes) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File size exceeds 20MB limit.")
 
-    try:
-        doc = await process_document(db, file.filename, pdf_bytes)
-        await db.commit()
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    doc = await enqueue_document(db, file.filename, pdf_bytes)
+    # Commit BEFORE enqueueing so the worker is guaranteed to see the row.
+    # If enqueue then fails, we still have a `pending` row that an operator
+    # can re-queue manually -- much better than the inverse race.
+    await db.commit()
 
-    return DocumentResponse(
+    await arq.enqueue_job(_PROCESS_DOCUMENT_TASK, str(doc.id))
+
+    return DocumentJobResponse(
         id=doc.id,
+        status=doc.status,
         filename=doc.filename,
-        doc_type=doc.doc_type,
-        entities=Entities(**doc.entities),
-        raw_text=doc.raw_text,
         created_at=doc.created_at,
     )
 
@@ -64,7 +81,8 @@ async def get_documents(
             id=d.id,
             filename=d.filename,
             doc_type=d.doc_type,
-            entities=Entities(**d.entities),
+            entities=Entities(**d.entities) if d.entities else None,
+            status=d.status,
             created_at=d.created_at,
         )
         for d in docs
@@ -83,9 +101,12 @@ async def get_document_by_id(
         id=doc.id,
         filename=doc.filename,
         doc_type=doc.doc_type,
-        entities=Entities(**doc.entities),
+        entities=Entities(**doc.entities) if doc.entities else None,
         raw_text=doc.raw_text,
+        status=doc.status,
+        error=doc.error,
         created_at=doc.created_at,
+        processed_at=doc.processed_at,
     )
 
 

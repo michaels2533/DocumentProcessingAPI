@@ -56,3 +56,46 @@
 .main-content {
   min-height: 400px;
 }
+
+/* ---------------------------------------------------------------- */
+/* Lifecycle status pill shared across UploadPanel / DocumentList / */
+/* DocumentModal. Mirrors `DocumentStatus` in `types/document.ts`.  */
+/* ---------------------------------------------------------------- */
+.status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.status-pill.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-pill.status-processing {
+  background: #dbeafe;
+  color: #1e40af;
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+.status-pill.status-ready {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-pill.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% { opacity: 1; }
+  50%  { opacity: 0.55; }
+}

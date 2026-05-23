@@ -102,9 +102,13 @@ export default function SearchPanel({ onSelect }: Props) {
               >
                 <div className="doc-card-header">
                   <span className="doc-filename">{doc.filename}</span>
-                  <span className={`doc-type-badge ${doc.doc_type}`}>
-                    {doc.doc_type.replace("_", " ")}
-                  </span>
+                  {/* Search only returns ready rows server-side, but the
+                      shared type allows null so we guard defensively. */}
+                  {doc.doc_type && (
+                    <span className={`doc-type-badge ${doc.doc_type}`}>
+                      {doc.doc_type.replace("_", " ")}
+                    </span>
+                  )}
                   {doc.similarity != null && (
                     <span className="similarity-badge">
                       {(doc.similarity * 100).toFixed(1)}% similarity
@@ -116,7 +120,7 @@ export default function SearchPanel({ onSelect }: Props) {
                     </span>
                   )}
                 </div>
-                <EntityBadges entities={doc.entities} />
+                {doc.entities && <EntityBadges entities={doc.entities} />}
               </button>
             ))
           )}

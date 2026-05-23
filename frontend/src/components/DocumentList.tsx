@@ -36,24 +36,42 @@ export default function DocumentList({ onSelect }: Props) {
 
   return (
     <div className="doc-list">
-      {docs.map((doc) => (
-        <button
-          key={doc.id}
-          className="doc-card"
-          onClick={() => handleClick(doc.id)}
-        >
-          <div className="doc-card-header">
-            <span className="doc-filename">{doc.filename}</span>
-            <span className={`doc-type-badge ${doc.doc_type}`}>
-              {doc.doc_type.replace("_", " ")}
-            </span>
-          </div>
-          <EntityBadges entities={doc.entities} />
-          <div className="doc-card-footer">
-            {new Date(doc.created_at).toLocaleDateString()}
-          </div>
-        </button>
-      ))}
+      {docs.map((doc) => {
+        const isReady = doc.status === "ready";
+        return (
+          <button
+            key={doc.id}
+            className="doc-card"
+            onClick={() => handleClick(doc.id)}
+          >
+            <div className="doc-card-header">
+              <span className="doc-filename">{doc.filename}</span>
+              {isReady && doc.doc_type && (
+                <span className={`doc-type-badge ${doc.doc_type}`}>
+                  {doc.doc_type.replace("_", " ")}
+                </span>
+              )}
+              {!isReady && (
+                <span className={`status-pill status-${doc.status}`}>
+                  {doc.status}
+                </span>
+              )}
+            </div>
+            {isReady && doc.entities ? (
+              <EntityBadges entities={doc.entities} />
+            ) : (
+              <p className="no-entities">
+                {doc.status === "failed"
+                  ? "Processing failed. Open to see details."
+                  : "Awaiting processing..."}
+              </p>
+            )}
+            <div className="doc-card-footer">
+              {new Date(doc.created_at).toLocaleDateString()}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

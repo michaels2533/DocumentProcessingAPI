@@ -10,6 +10,19 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://docproc:docproc_secret@db:5432/docproc"
 
     # ------------------------------------------------------------------ #
+    # Background processing (Arq + Redis)
+    # ------------------------------------------------------------------ #
+    # API enqueues jobs to this Redis instance; the `worker` service pops them.
+    redis_url: str = "redis://redis:6379/0"
+    # Per-worker concurrency. Each in-flight job holds one DB session and one
+    # outbound LLM/embedding connection, so size this to your provider limits.
+    worker_concurrency: int = 4
+    # Per-job timeout (seconds). Should comfortably exceed the slowest LLM call.
+    worker_job_timeout: int = 180
+    # Arq retries failed jobs with exponential backoff up to this many times.
+    worker_max_tries: int = 5
+
+    # ------------------------------------------------------------------ #
     # Chat / classification (swappable at runtime via LLM_PROVIDER)
     # ------------------------------------------------------------------ #
     # Case-insensitive in practice: `app.services.llm.factory` lower-cases

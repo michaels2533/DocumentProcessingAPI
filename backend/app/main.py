@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import sessionmanager
+from app.core.queue import create_arq_pool
 from app.routers import documents
 
 
@@ -11,10 +12,16 @@ from app.routers import documents
 async def lifespan(app: FastAPI):
     # Initializes pgvector extension
     await sessionmanager.init()
-    yield
-    if sessionmanager._engine is not None:
-        # Close DB Connection
-        sessionmanager.close()
+    # Open a single Arq Redis pool for the lifetime of the process. The API
+    # only enqueues jobs through this pool; the worker service runs them.
+    app.state.arq = await create_arq_pool()
+    try:
+        yield
+    finally:
+        await app.state.arq.close()
+        if sessionmanager._engine is not None:
+            # Close DB Connection
+            await sessionmanager.close()
 
 
 

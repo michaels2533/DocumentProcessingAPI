@@ -6,21 +6,42 @@ This deployable API processes and analyzes documents using AI then stores them i
 | Component | Technology |
 |-----------|-----------|
 | Frontend | React 19 + TypeScript + Vite |
-| Backend | FastAPI + SQLAlchemy (async) |
+| Backend (API) | FastAPI + SQLAlchemy (async) |
+| Background worker | Arq (asyncio task queue) |
+| Broker | Redis 7 |
 | Database | PostgreSQL 16 + pgvector |
 | Migrations | Alembic |
 | Testing | Pytest + pytest-asyncio + httpx |
 | AI | Pluggable chat provider (OpenAI / Anthropic / Ollama) + text-embedding-3-small for embeddings |
 | PDF parsing | PyMuPDF (text-based PDFs) |
 
+### Component diagram
+
+```
+┌──────────┐      ┌──────────┐      ┌─────────┐      ┌──────────┐      ┌──────────┐
+│ Frontend │ ───► │   API    │ ───► │  Redis  │ ───► │  Worker  │ ───► │ Postgres │
+│  (React) │ ◄─── │ (FastAPI)│      │ (queue) │      │  (Arq)   │      │(pgvector)│
+└──────────┘ poll └────┬─────┘      └─────────┘      └─────┬────┘      └──────────┘
+                       │                                   │                ▲
+                       └───────── writes "pending" ────────┴─── writes ─────┘
+                                                                "ready/failed"
+```
+
+The API is intentionally thin: it persists the upload, enqueues a job, and returns `202 Accepted` immediately. All slow work (PDF extraction, LLM classification, embedding) happens in the `worker` service so the API stays responsive and the LLM pipeline can be retried and scaled independently.
+
 ## Pipeline
 
-1. **Upload** -- PDF uploaded via React frontend to FastAPI backend
-2. **Extract** -- PyMuPDF extracts raw text (no OCR, text-based PDFs only)
-3. **Classify** -- The configured chat provider (OpenAI / Anthropic / Ollama) classifies the document (`medical_record`, `legal_filing`, `billing`, `correspondence`, `other`) and extracts entities (person names, dates, dollar amounts, medical conditions, organizations)
-4. **Embed** -- text-embedding-3-small generates a 1536-dimension vector (locked at deploy time)
-5. **Store** -- Everything saved in a single PostgreSQL table: raw text, doc_type, entities (JSONB), embedding (pgvector)
-6. **Search** -- pgvector cosine similarity search with optional SQL filtering on doc_type and JSONB entity fields
+1. **Upload (API, sync)** -- PDF uploaded via React frontend to FastAPI. The API inserts a `documents` row with `status="pending"`, persists the raw PDF bytes, commits, and enqueues a job in Redis. The client receives `202 Accepted` with the new document id.
+2. **Pick up (Worker)** -- An Arq worker pops the job, sets the row to `status="processing"`.
+3. **Extract (Worker)** -- PyMuPDF extracts raw text (no OCR, text-based PDFs only). The CPU-bound parse runs in a thread so it doesn't block other concurrent jobs.
+4. **Classify + Embed (Worker, in parallel)** -- The configured chat provider (OpenAI / Anthropic / Ollama) classifies the document (`medical_record`, `legal_filing`, `billing`, `correspondence`, `other`) and extracts entities; `text-embedding-3-small` generates a 1536-dim vector.
+5. **Finalize (Worker)** -- Results are written back to the row, `status` becomes `"ready"` (or `"failed"` with an `error` message if every retry exhausts), `processed_at` is stamped, and the persisted PDF bytes are cleared.
+6. **Poll (Client)** -- Frontend polls `GET /api/documents/{id}` until `status == "ready"` and then renders the result.
+7. **Search** -- pgvector cosine similarity + Postgres FTS, restricted to rows in `status="ready"`, with optional SQL filtering on `doc_type` and JSONB entity fields.
+
+### Failure handling
+
+Arq retries failed jobs with exponential backoff up to `WORKER_MAX_TRIES` times. If every attempt fails, the row's `status` becomes `"failed"` and `error` holds the exception text, so the cause is visible immediately through `GET /api/documents/{id}`. Because the original PDF bytes are persisted on the row, operators can re-queue a failed document by hand without asking the user to re-upload.
 
 ## LLM Provider Abstraction
 
@@ -79,13 +100,17 @@ The MVP is intentionally a **single-table, denormalized design**. Every uploaded
 ## ERD Diagram
 ```mermaid
     DOCUMENTS {
-        uuid          id           PK "default gen_random_uuid()"
-        varchar_512   filename     "original upload name"
-        text          raw_text     "PyMuPDF extracted text"
-        varchar_50    doc_type     "B-tree indexed; one of: medical_record, legal_filing, billing, correspondence, other"
-        jsonb         entities     "embedded Entities object (see below)"
-        vector_1536   embedding    "pgvector; cosine similarity search"
-        timestamptz   created_at   "default now()"
+        uuid          id            PK "default gen_random_uuid()"
+        varchar_512   filename      "original upload name"
+        bytea         pdf_bytes     "persisted upload; cleared when status='ready'"
+        text          raw_text      "PyMuPDF extracted text (NULL until processed)"
+        varchar_50    doc_type      "B-tree indexed; one of: medical_record, legal_filing, billing, correspondence, other"
+        jsonb         entities      "embedded Entities object (see below); NULL until processed"
+        vector_1536   embedding     "pgvector; cosine similarity search; NULL until processed"
+        varchar_20    status        "lifecycle: pending | processing | ready | failed"
+        text          error         "exception text if status='failed'"
+        timestamptz   processed_at  "set when status transitions to ready"
+        timestamptz   created_at    "default now()"
     }
 
     ENTITIES_JSONB {
@@ -109,10 +134,14 @@ The MVP is intentionally a **single-table, denormalized design**. Every uploaded
 |--------|------|----------|-------|
 | `id` | `uuid` | No | Primary key. Server default `gen_random_uuid()`. |
 | `filename` | `varchar(512)` | No | Original filename of the uploaded PDF. |
-| `raw_text` | `text` | No | Full extracted text from PyMuPDF. |
-| `doc_type` | `varchar(50)` | No | Classification label from GPT-4o-mini. Indexed for fast filtering. |
-| `entities` | `jsonb` | No | Default `{}`. Shape conforms to the `Entities` Pydantic model. |
-| `embedding` | `vector(1536)` | Yes | `text-embedding-3-small` output. Dimension comes from `settings.embedding_dimensions`. |
+| `pdf_bytes` | `bytea` | Yes | Raw upload, persisted so the worker can retry independently of the original request. Cleared when `status` becomes `ready`. |
+| `raw_text` | `text` | Yes | Full extracted text from PyMuPDF. NULL until the worker has processed the row. |
+| `doc_type` | `varchar(50)` | Yes | Classification label from the configured chat provider. Indexed for fast filtering. NULL until processed. |
+| `entities` | `jsonb` | Yes | Shape conforms to the `Entities` Pydantic model. NULL until processed. |
+| `embedding` | `vector(1536)` | Yes | `text-embedding-3-small` output. Dimension comes from `settings.embedding_dimensions`. NULL until processed. |
+| `status` | `varchar(20)` | No | Lifecycle: `pending` → `processing` → `ready` \| `failed`. Server default `'pending'`. Indexed. |
+| `error` | `text` | Yes | Last exception text if `status='failed'`. |
+| `processed_at` | `timestamptz` | Yes | Set when `status` transitions to `ready`. |
 | `created_at` | `timestamptz` | No | Server default `now()`. |
 
 ### Indexes & Constraints
@@ -121,7 +150,9 @@ The MVP is intentionally a **single-table, denormalized design**. Every uploaded
 |-------|------|---------|---------|
 | `documents_pkey` | B-tree (unique) | `id` | Primary key lookup. |
 | `ix_documents_doc_type` | B-tree | `doc_type` | Fast filtering in search (`WHERE doc_type = ?`). |
-| *(future)* | `pgvector` (HNSW or IVFFlat) | `embedding` `vector_cosine_ops` | Approximate nearest-neighbor search. Not yet defined in the model -- searches currently use an exact scan, which is acceptable at MVP volume. |
+| `ix_documents_status` | B-tree | `status` | Fast filtering of pending/failed rows for admin & recovery. |
+| `ix_documents_embedding_hnsw` | HNSW | `embedding` `vector_cosine_ops` | Approximate nearest-neighbor search for the semantic side of the hybrid query. |
+| `ix_documents_raw_text_tsv` | GIN | `raw_text_tsv` | Full-text search; backs `ts_rank` in the hybrid query. |
 | *(optional)* | GIN | `entities` `jsonb_path_ops` | Would accelerate JSONB containment queries when `entity_filters` is used. |
 
 ### Why a single table for the MVP?
@@ -160,23 +191,44 @@ op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
 ### Services
 
-| Service | URL / Port |
-|---------|-----|
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:8000 |
-| API Docs (Swagger) | http://localhost:8000/docs |
-| Health Check | http://localhost:8000/health |
-| Postgres (app DB) | localhost:5432 |
-| Postgres (test DB) | localhost:5434 |
+| Service | URL / Port | Notes |
+|---------|-----|-----|
+| Frontend | http://localhost:5173 | React + Vite |
+| Backend API | http://localhost:8000 | FastAPI, enqueues jobs only |
+| API Docs (Swagger) | http://localhost:8000/docs | |
+| Health Check | http://localhost:8000/health | |
+| Worker | *(no port)* | `arq app.workers.arq_worker.WorkerSettings`. Scale with `docker compose up --scale worker=N`. |
+| Redis (broker) | localhost:6379 | Arq queue + job result store |
+| Postgres (app DB) | localhost:5432 | |
+| Postgres (test DB) | localhost:5434 | |
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/documents/upload` | Upload a PDF for processing |
-| `GET` | `/api/documents/` | List all documents |
-| `GET` | `/api/documents/{id}` | Get a single document with full text |
-| `POST` | `/api/documents/search` | Semantic search with optional filters |
+| Method | Path | Response | Description |
+|--------|------|----------|-------------|
+| `POST` | `/api/documents/upload` | `202 Accepted` + `{id, status, filename, created_at}` | Persists the PDF and enqueues the pipeline. Returns immediately. |
+| `GET` | `/api/documents/` | `200` + summaries | List documents (any status). |
+| `GET` | `/api/documents/{id}` | `200` + full doc incl. `status` & `error` | Poll this until `status == "ready"`. |
+| `POST` | `/api/documents/search` | `200` + ranked results | Hybrid pgvector + FTS search; only returns `status="ready"` rows. |
+
+### Async upload flow
+
+```
+client                API                Redis               Worker             Postgres
+  │                    │                   │                    │                   │
+  │── POST /upload ───►│                   │                    │                   │
+  │                    │── INSERT pending,│                    │                   │
+  │                    │   pdf_bytes ────────────────────────────────────────────►│
+  │                    │── enqueue_job ──►│                    │                   │
+  │◄── 202 {id} ───────│                   │                    │                   │
+  │                    │                   │── pop job ───────►│                   │
+  │                    │                   │                    │── UPDATE         │
+  │                    │                   │                    │   status=processing─►│
+  │                    │                   │                    │── extract+LLM+embed │
+  │                    │                   │                    │── UPDATE status=ready─►│
+  │── GET /{id} ──────►│                   │                    │                   │
+  │◄── status=ready ───│                   │                    │                   │
+```
 
 ### Search Request Body
 
@@ -186,6 +238,41 @@ op.execute("CREATE EXTENSION IF NOT EXISTS vector")
   "doc_type": "medical_record",
   "top_k": 10
 }
+```
+
+## Background Processing (Arq + Redis)
+
+The pipeline runs in a separate `worker` container so the API never blocks on PyMuPDF parsing or LLM round-trips.
+
+### Components
+
+- **Broker**: `redis:7-alpine` (`redis` service).
+- **Producer**: the FastAPI app opens a single `ArqRedis` pool in `lifespan` and enqueues `process_document_job` from `POST /api/documents/upload`.
+- **Consumer**: the `worker` service runs `arq app.workers.arq_worker.WorkerSettings`. Each worker pulls jobs from Redis, opens its own DB session via the shared `sessionmanager`, and executes `run_document_pipeline`.
+
+### Retries & failures
+
+`WorkerSettings.max_tries` controls how many times Arq retries a job with exponential backoff. The pipeline writes `status="failed"` + the exception text to the document row *before* re-raising, so a final failure is durable and immediately visible via `GET /api/documents/{id}`. Because `pdf_bytes` is persisted on the row, an operator can re-enqueue a failed document without re-uploading.
+
+### Scaling
+
+```bash
+# Run N worker processes against the same Redis broker
+docker compose up --scale worker=3
+```
+
+Within a worker, `WORKER_CONCURRENCY` controls how many jobs run in parallel on the asyncio event loop. The CPU-bound `extract_text` call is dispatched via `asyncio.to_thread`, so a single worker can saturate several concurrent LLM / embedding network calls.
+
+### Local development (without Docker)
+
+You'll need a local Redis (e.g. `brew install redis && redis-server`) and to run the worker alongside `uvicorn`:
+
+```bash
+# In one terminal -- the API
+uvicorn app.main:app --reload
+
+# In another -- the worker
+arq app.workers.arq_worker.WorkerSettings
 ```
 
 ## Database Migrations
@@ -238,8 +325,12 @@ async def test_insert_document(db_session):
 
 async def test_upload_endpoint(client):
     response = await client.post("/api/documents/upload", files={...})
-    assert response.status_code == 201
+    # 202 Accepted -- the pipeline now runs out-of-band in the worker.
+    assert response.status_code == 202
+    assert response.json()["status"] == "pending"
 ```
+
+> When testing the upload endpoint, override the `get_arq_pool` dependency with a stub (e.g. an `AsyncMock` with an `enqueue_job` coroutine) so the test doesn't require a running Redis. The same `client` fixture pattern from `conftest.py` applies.
 
 ## Project Structure
 
@@ -247,7 +338,8 @@ async def test_upload_endpoint(client):
 ├── backend/
 │   ├── app/
 │   │   ├── alembic/       # Alembic migration runtime config
-│   │   ├── core/          # Config, database session manager
+│   │   ├── core/          # Config, database session manager, Arq pool wiring
+│   │   │   └── queue.py   # `create_arq_pool` + `get_arq_pool` FastAPI dep
 │   │   ├── models/        # SQLAlchemy models
 │   │   ├── routers/       # FastAPI route handlers
 │   │   ├── schemas/       # Pydantic request/response schemas
@@ -255,9 +347,12 @@ async def test_upload_endpoint(client):
 │   │   │   ├── llm/                    # Swappable chat providers (OpenAI/Anthropic/Ollama)
 │   │   │   ├── classification_service.py  # Provider-agnostic classify+extract
 │   │   │   ├── embedding_service.py    # Locked-at-deploy embedding model
-│   │   │   ├── document_service.py     # Upload/list/get/search orchestration
+│   │   │   ├── document_service.py     # `enqueue_document` + `run_document_pipeline`
 │   │   │   └── pdf_service.py          # PyMuPDF text extraction
-│   │   └── main.py        # FastAPI app entrypoint
+│   │   ├── workers/
+│   │   │   ├── arq_worker.py           # `WorkerSettings` consumed by the `arq` CLI
+│   │   │   └── tasks.py                # `process_document_job` task function
+│   │   └── main.py        # FastAPI app entrypoint (opens the Arq pool in lifespan)
 │   ├── tests/
 │   │   └── conftest.py    # Shared pytest fixtures (db_session, client)
 │   ├── Dockerfile
@@ -291,6 +386,10 @@ Defined in `.env` (see `.env.example` for the full list):
 | `TEST_DATABASE_URL` | Async Postgres URL for the test database |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | App DB credentials used by the `db` service |
 | `TEST_POSTGRES_USER` / `TEST_POSTGRES_PASSWORD` / `TEST_POSTGRES_DB` | Test DB credentials used by the `test-db` service |
+| `REDIS_URL` | Redis DSN used by both the API (enqueue) and the worker (consume). Defaults to `redis://redis:6379/0`. |
+| `WORKER_CONCURRENCY` | Optional. Max in-flight jobs per worker process. Default `4`. |
+| `WORKER_JOB_TIMEOUT` | Optional. Per-job timeout in seconds. Default `180`. |
+| `WORKER_MAX_TRIES` | Optional. Retry budget per job before `status` becomes `failed`. Default `5`. |
 
 ## Local Development (without Docker)
 
@@ -305,12 +404,17 @@ pip install -r requirements.txt
 # Set DATABASE_URL to point to your local Postgres with pgvector
 export DATABASE_URL="postgresql+asyncpg://docproc:docproc_secret@localhost:5432/docproc"
 export OPENAI_API_KEY="sk-..."
+# Local Redis for the Arq broker
+export REDIS_URL="redis://localhost:6379/0"
 
 # Apply migrations
 alembic upgrade head
 
-# Run the app
+# Run the API
 uvicorn app.main:app --reload
+
+# In a second terminal -- start the background worker
+arq app.workers.arq_worker.WorkerSettings
 ```
 
 ### Frontend

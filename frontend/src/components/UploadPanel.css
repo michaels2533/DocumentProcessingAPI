@@ -138,6 +138,30 @@
   margin-top: 16px;
 }
 
+/* In-flight job row (shown between upload-accept and terminal state). */
+.upload-job {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.job-filename {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-result-failed {
+  border-color: #fecaca;
+}
+
 .btn-primary {
   padding: 10px 20px;
   background: var(--color-primary);

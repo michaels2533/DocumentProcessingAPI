@@ -19,10 +19,16 @@ class ClassificationResult(BaseModel):
 class DocumentResponse(BaseModel):
     id: UUID
     filename: str
-    doc_type: str
-    entities: Entities
-    raw_text: str
+    # Pipeline outputs are populated by the worker, so they are absent while
+    # the document is still `pending` / `processing` and may be missing on a
+    # `failed` document.
+    doc_type: str | None = None
+    entities: Entities | None = None
+    raw_text: str | None = None
+    status: str
+    error: str | None = None
     created_at: datetime
+    processed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -30,11 +36,27 @@ class DocumentResponse(BaseModel):
 class DocumentSummary(BaseModel):
     id: UUID
     filename: str
-    doc_type: str
-    entities: Entities
+    doc_type: str | None = None
+    entities: Entities | None = None
+    status: str
     created_at: datetime
     similarity: float | None = None
     fts_rank: float | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentJobResponse(BaseModel):
+    """Returned by `POST /documents/upload` (HTTP 202).
+
+    The pipeline runs asynchronously; clients poll `GET /documents/{id}`
+    until `status == "ready"` (or `"failed"`).
+    """
+
+    id: UUID
+    status: str
+    filename: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
