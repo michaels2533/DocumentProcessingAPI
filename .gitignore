@@ -18,6 +18,7 @@ frontend/dist/
 .vscode/
 .idea/
 cursor/
+.cursor/
 
 # Uploads
 backend/uploads/
