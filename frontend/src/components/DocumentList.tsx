@@ -1,77 +1,155 @@
-import { useEffect, useState } from "react";
-import { listDocuments, getDocument } from "../api/client";
+import { useState } from "react";
+import { getDocument } from "../api/client";
 import type { DocumentDetail, DocumentSummary } from "../types/document";
-import EntityBadges from "./EntityBadges";
 import "./DocumentList.css";
 
 interface Props {
+  docs: DocumentSummary[];
+  loading: boolean;
+  error: string | null;
   onSelect: (doc: DocumentDetail) => void;
 }
 
-export default function DocumentList({ onSelect }: Props) {
-  const [docs, setDocs] = useState<DocumentSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const STATUS_LABEL: Record<DocumentSummary["status"], string> = {
+  pending: "Queued",
+  processing: "Processing",
+  ready: "Ready",
+  failed: "Failed",
+};
 
-  useEffect(() => {
-    listDocuments()
-      .then(setDocs)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+export default function DocumentList({
+  docs,
+  loading,
+  error,
+  onSelect,
+}: Props) {
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleClick = async (id: string) => {
+  const open = async (id: string) => {
+    setOpeningId(id);
+    setLocalError(null);
     try {
       const full = await getDocument(id);
       onSelect(full);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load document.");
+      setLocalError(
+        e instanceof Error ? e.message : "Failed to load document."
+      );
+    } finally {
+      setOpeningId(null);
     }
   };
 
-  if (loading) return <p className="status-message">Loading documents...</p>;
+  if (loading)
+    return <p className="status-message">Loading documents…</p>;
   if (error) return <p className="status-message error">{error}</p>;
   if (docs.length === 0)
-    return <p className="status-message">No documents yet. Upload one to get started.</p>;
+    return (
+      <p className="status-message">
+        No documents in this view yet.
+      </p>
+    );
 
   return (
-    <div className="doc-list">
+    <div className="doc-table">
+      <div className="doc-row doc-row-head" role="row">
+        <span />
+        <span>Document</span>
+        <span>Type</span>
+        <span>Status</span>
+        <span>Highlights</span>
+        <span>Added</span>
+      </div>
+
       {docs.map((doc) => {
         const isReady = doc.status === "ready";
+        const tabKey = doc.doc_type ?? "other";
+        const highlights = entityPreview(doc);
         return (
           <button
             key={doc.id}
-            className="doc-card"
-            onClick={() => handleClick(doc.id)}
+            className={`doc-row doc-row-item ${
+              openingId === doc.id ? "opening" : ""
+            }`}
+            onClick={() => open(doc.id)}
           >
-            <div className="doc-card-header">
+            <span
+              className={`doc-stripe stripe-${tabKey}`}
+              aria-hidden
+            />
+            <span className="doc-name">
               <span className="doc-filename">{doc.filename}</span>
-              {isReady && doc.doc_type && (
+            </span>
+            <span className="doc-cell">
+              {doc.doc_type ? (
                 <span className={`doc-type-badge ${doc.doc_type}`}>
                   {doc.doc_type.replace("_", " ")}
                 </span>
+              ) : (
+                <span className="cell-muted">—</span>
               )}
-              {!isReady && (
-                <span className={`status-pill status-${doc.status}`}>
-                  {doc.status}
+            </span>
+            <span className="doc-cell">
+              <span className={`status-pill status-${doc.status}`}>
+                {STATUS_LABEL[doc.status]}
+              </span>
+            </span>
+            <span className="doc-cell doc-highlights">
+              {isReady ? (
+                highlights || <span className="cell-muted">No entities</span>
+              ) : (
+                <span className="cell-muted">
+                  {doc.status === "failed"
+                    ? "Pipeline error"
+                    : "Awaiting processing"}
                 </span>
               )}
-            </div>
-            {isReady && doc.entities ? (
-              <EntityBadges entities={doc.entities} />
-            ) : (
-              <p className="no-entities">
-                {doc.status === "failed"
-                  ? "Processing failed. Open to see details."
-                  : "Awaiting processing..."}
-              </p>
-            )}
-            <div className="doc-card-footer">
-              {new Date(doc.created_at).toLocaleDateString()}
-            </div>
+            </span>
+            <span className="doc-cell doc-date tnum">
+              {formatDate(doc.created_at)}
+            </span>
           </button>
         );
       })}
+
+      {localError && <p className="status-message error">{localError}</p>}
     </div>
   );
+}
+
+function entityPreview(doc: DocumentSummary): string | null {
+  const e = doc.entities;
+  if (!e) return null;
+  const parts: string[] = [];
+  if (e.person_names?.length) parts.push(e.person_names[0]);
+  if (e.dollar_amounts?.length) parts.push(e.dollar_amounts[0]);
+  if (e.organizations?.length) parts.push(e.organizations[0]);
+  if (e.medical_conditions?.length) parts.push(e.medical_conditions[0]);
+  if (parts.length === 0) return null;
+  const extra =
+    countEntities(e) - parts.length > 0
+      ? ` +${countEntities(e) - parts.length}`
+      : "";
+  return parts.slice(0, 3).join(" · ") + extra;
+}
+
+function countEntities(e: DocumentSummary["entities"]): number {
+  if (!e) return 0;
+  return (
+    (e.person_names?.length ?? 0) +
+    (e.dollar_amounts?.length ?? 0) +
+    (e.organizations?.length ?? 0) +
+    (e.medical_conditions?.length ?? 0) +
+    (e.dates?.length ?? 0)
+  );
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

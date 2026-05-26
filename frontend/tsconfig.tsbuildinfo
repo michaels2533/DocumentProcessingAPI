@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/client.ts","./src/components/documentlist.tsx","./src/components/documentmodal.tsx","./src/components/entitybadges.tsx","./src/components/searchpanel.tsx","./src/components/uploadpanel.tsx","./src/hooks/usedocumentstatus.ts","./src/types/document.ts"],"version":"5.7.3"}

@@ -1,101 +1,72 @@
-.app {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px 20px 48px;
+/* ============================================================
+   App shell — sidebar + topbar + main canvas + dossier panel.
+   Mirrors the layout structure of the reference dashboards
+   (persistent left sidebar, single scrolling canvas).
+   ============================================================ */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100vh;
+  background: var(--canvas);
 }
 
-.app-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.app-header h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--color-primary);
-}
-
-.app-header p {
-  color: var(--color-text-secondary);
-  margin-top: 4px;
-  font-size: 0.95rem;
-}
-
-.tab-bar {
+.app-main {
+  min-width: 0;
   display: flex;
-  gap: 4px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 4px;
-  margin-bottom: 28px;
+  flex-direction: column;
 }
 
-.tab-btn {
+.canvas {
   flex: 1;
-  padding: 10px 16px;
-  border: none;
-  background: transparent;
-  border-radius: 7px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  transition: all 0.15s ease;
+  padding: var(--s-7) var(--s-8) var(--s-9);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  max-width: 1320px;
+  width: 100%;
 }
 
-.tab-btn.active {
-  background: var(--color-primary);
-  color: white;
+@media (max-width: 1100px) {
+  .canvas {
+    padding: var(--s-6) var(--s-5) var(--s-8);
+  }
 }
 
-.tab-btn:not(.active):hover {
-  background: var(--color-bg);
+@media (max-width: 860px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .canvas {
+    padding: var(--s-5) var(--s-4) var(--s-7);
+    gap: var(--s-6);
+  }
 }
 
-.main-content {
-  min-height: 400px;
+/* ----- Section scaffolding shared across views ----- */
+
+.canvas-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
 }
 
-/* ---------------------------------------------------------------- */
-/* Lifecycle status pill shared across UploadPanel / DocumentList / */
-/* DocumentModal. Mirrors `DocumentStatus` in `types/document.ts`.  */
-/* ---------------------------------------------------------------- */
-.status-pill {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.72rem;
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.section-title {
+  font-size: 14px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: #e5e7eb;
-  color: #374151;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  text-transform: none;
 }
 
-.status-pill.status-pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-pill.status-processing {
-  background: #dbeafe;
-  color: #1e40af;
-  animation: status-pulse 1.6s ease-in-out infinite;
-}
-
-.status-pill.status-ready {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-pill.status-failed {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-@keyframes status-pulse {
-  0%,
-  100% { opacity: 1; }
-  50%  { opacity: 0.55; }
+.section-meta {
+  font-size: 12.5px;
+  color: var(--ink-3);
 }

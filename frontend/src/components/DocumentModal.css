@@ -1,75 +1,281 @@
-.modal-overlay {
+/* ============================================================
+   DossierPanel — slides in from the right when a document is
+   opened. Modeless: the canvas stays visible behind a soft scrim
+   so users can hop between rows without losing context.
+   ============================================================ */
+
+.dossier-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  z-index: 50;
+}
+
+.dossier-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dossier {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: var(--dossier-w);
+  max-width: 92vw;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 20px;
-  backdrop-filter: blur(4px);
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 51;
+  overflow: hidden;
 }
 
-.modal-content {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  max-width: 720px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  padding: 28px;
+.dossier.open {
+  transform: translateX(0);
 }
 
-.modal-header {
+/* ----- Head ----- */
+
+.dossier-head {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 20px;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--s-5) var(--s-3);
+  border-bottom: 1px solid var(--border);
 }
 
-.modal-header h2 {
-  font-size: 1.15rem;
+.dossier-head-meta {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.dossier-stripe {
+  width: 4px;
+  background: currentColor;
+  border-radius: 2px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.dossier-stripe.stripe-medical_record { color: var(--tab-medical); }
+.dossier-stripe.stripe-legal_filing { color: var(--tab-legal); }
+.dossier-stripe.stripe-billing { color: var(--tab-billing); }
+.dossier-stripe.stripe-correspondence { color: var(--tab-correspondence); }
+.dossier-stripe.stripe-other { color: var(--tab-other); }
+
+.dossier-meta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dossier-eyebrow {
+  font-size: 11px;
   font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.8rem;
-  color: var(--color-text-secondary);
-  line-height: 1;
-  padding: 0 4px;
-}
-
-.modal-close:hover {
-  color: var(--color-text);
-}
-
-.modal-section {
-  margin-bottom: 20px;
-}
-
-.modal-section h3 {
-  font-size: 0.82rem;
-  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-secondary);
-  margin-bottom: 10px;
+  color: var(--ink-3);
 }
+
+.dossier-title {
+  font-size: 22px;
+  line-height: 1.25;
+  color: var(--ink);
+  font-weight: 500;
+  word-break: break-word;
+  font-family: var(--font-editorial);
+  letter-spacing: -0.015em;
+}
+
+.dossier-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.dossier-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  color: var(--ink-3);
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.dossier-icon-btn:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+
+.dossier-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dossier-icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dossier-icon-btn-danger:hover:not(:disabled) {
+  background: var(--rose-soft);
+  color: var(--rose-ink);
+}
+
+/* ----- Status row ----- */
+
+.dossier-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+
+.dossier-stamp {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* ----- Inline confirm strip ----- */
+/* Sits between the status row and the body. Tinted rose so the
+   destructive action reads even at a glance, but quiet enough to
+   not feel like an alarm. */
+
+.dossier-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  background: var(--rose-soft);
+  border-bottom: 1px solid rgba(244, 63, 94, 0.18);
+  animation: confirm-slide 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes confirm-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dossier-confirm-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dossier-confirm-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rose-ink);
+  letter-spacing: -0.005em;
+}
+
+.dossier-confirm-sub {
+  font-size: 12px;
+  color: var(--rose-ink);
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+.dossier-confirm-error {
+  font-size: 12px;
+  color: var(--rose-ink);
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.dossier-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+@media (min-width: 480px) {
+  .dossier-confirm-actions {
+    flex-direction: row;
+    align-self: center;
+  }
+}
+
+/* ----- Body ----- */
+
+.dossier-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.dossier-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.dossier-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.dossier-section-error .dossier-section-title {
+  color: var(--rose-ink);
+}
+
+/* ----- Raw text block ----- */
 
 .raw-text {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 7px;
-  padding: 16px;
-  font-size: 0.82rem;
-  line-height: 1.7;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 360px;
   overflow-y: auto;
-  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.raw-text-error {
+  background: var(--rose-soft);
+  border-color: rgba(244, 63, 94, 0.18);
+  color: var(--rose-ink);
+}
+
+.dossier-foot {
+  font-size: 11px;
+  color: var(--ink-muted);
+  padding-top: var(--s-2);
+  border-top: 1px dashed var(--border);
 }

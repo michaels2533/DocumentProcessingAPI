@@ -1,52 +1,162 @@
-.doc-list {
+/* ============================================================
+   DocumentList — structured list of documents.
+   The folder-tab stripe on the left is the product's signature.
+   ============================================================ */
+
+.doc-table {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
-.doc-card {
-  display: block;
-  width: 100%;
+.doc-row {
+  display: grid;
+  grid-template-columns:
+    4px               /* stripe */
+    minmax(0, 2.4fr)  /* filename */
+    140px             /* type */
+    120px             /* status */
+    minmax(0, 2fr)    /* highlights */
+    110px;            /* date */
+  align-items: center;
   text-align: left;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
-  font-size: inherit;
-  color: inherit;
+  padding: 0;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  transition: background 100ms ease;
+  position: relative;
 }
 
-.doc-card:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
+.doc-row:last-child {
+  border-bottom: none;
 }
 
-.doc-card-header {
+@media (max-width: 1100px) {
+  .doc-row {
+    grid-template-columns: 4px minmax(0, 2.4fr) 130px 110px minmax(0, 2fr);
+  }
+  .doc-date {
+    display: none !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .doc-row {
+    grid-template-columns: 4px minmax(0, 1.6fr) 110px;
+  }
+  .doc-row .doc-cell:nth-child(4),
+  .doc-row .doc-cell:nth-child(5) {
+    display: none;
+  }
+  .doc-row-head span:nth-child(4),
+  .doc-row-head span:nth-child(5),
+  .doc-row-head span:nth-child(6) {
+    display: none;
+  }
+}
+
+/* ----- Header row ----- */
+.doc-row-head {
+  background: var(--surface-sunken);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 600;
+  height: 38px;
+}
+
+.doc-row-head > span {
+  padding: 0 var(--s-4);
+}
+
+.doc-row-head > span:first-child {
+  padding: 0;
+}
+
+/* ----- Item row ----- */
+.doc-row-item {
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  min-height: 60px;
+  font-family: inherit;
+}
+
+.doc-row-item:hover {
+  background: rgba(109, 93, 252, 0.04);
+}
+
+.doc-row-item:focus-visible {
+  outline: none;
+  background: var(--brand-softer);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.doc-row-item.opening {
+  opacity: 0.55;
+}
+
+/* ----- Folder-tab stripe (the signature) ----- */
+.doc-stripe {
+  align-self: stretch;
+  background: currentColor;
+  opacity: 0.9;
+}
+
+.doc-stripe.stripe-medical_record { color: var(--tab-medical); }
+.doc-stripe.stripe-legal_filing { color: var(--tab-legal); }
+.doc-stripe.stripe-billing { color: var(--tab-billing); }
+.doc-stripe.stripe-correspondence { color: var(--tab-correspondence); }
+.doc-stripe.stripe-other { color: var(--tab-other); }
+
+/* ----- Cells ----- */
+.doc-name {
+  padding: 0 var(--s-4);
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: var(--s-2);
+  min-width: 0;
 }
 
 .doc-filename {
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.005em;
 }
 
-.doc-card-footer {
-  margin-top: 10px;
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
+.doc-cell {
+  padding: 0 var(--s-4);
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
-.status-message {
-  text-align: center;
-  padding: 48px 20px;
-  color: var(--color-text-secondary);
-  font-size: 0.95rem;
+.doc-highlights {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.status-message.error {
-  color: var(--color-danger);
+.doc-date {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.cell-muted {
+  color: var(--ink-muted);
+  font-size: 12.5px;
 }

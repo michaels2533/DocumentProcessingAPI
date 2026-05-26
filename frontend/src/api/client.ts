@@ -36,6 +36,14 @@ export async function getDocument(id: string): Promise<DocumentDetail> {
   return request<DocumentDetail>(`${BASE}/${id}`);
 }
 
+export async function deleteDocument(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Delete failed: ${res.status}`);
+  }
+}
+
 export async function searchDocuments(
   req: SearchRequest
 ): Promise<{ results: DocumentSummary[] }> {

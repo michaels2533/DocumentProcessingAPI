@@ -1,178 +1,173 @@
 .upload-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--s-5);
 }
 
 .drop-zone {
-  border: 2px dashed var(--color-border);
-  border-radius: var(--radius);
-  padding: 56px 24px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: var(--s-9) var(--s-5);
+  background: var(--surface);
+  border: 1.5px dashed var(--border-emphasis);
+  border-radius: var(--r-xl);
   text-align: center;
-  background: var(--color-surface);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 150ms ease, background 150ms ease,
+    transform 150ms ease;
 }
 
-.drop-zone:hover,
+.drop-zone:hover {
+  border-color: var(--brand);
+  background: var(--brand-softer);
+}
+
 .drop-zone.dragging {
-  border-color: var(--color-primary);
-  background: #f0efff;
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  transform: scale(1.005);
 }
 
 .drop-zone.busy {
-  pointer-events: none;
-  opacity: 0.8;
+  cursor: progress;
+  border-style: solid;
+  border-color: var(--border-strong);
+  background: var(--surface);
 }
 
 .drop-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 56px;
   height: 56px;
-  border-radius: 12px;
-  background: var(--color-primary);
-  color: white;
-  font-weight: 700;
-  font-size: 0.85rem;
-  margin-bottom: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--s-1);
 }
 
 .drop-text {
-  font-size: 1rem;
+  font-size: 16px;
+  color: var(--ink);
   font-weight: 500;
+  letter-spacing: -0.005em;
 }
 
 .drop-text .link {
-  color: var(--color-primary);
+  color: var(--brand);
   text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1.5px;
 }
 
 .drop-hint {
-  font-size: 0.82rem;
-  color: var(--color-text-secondary);
-  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
 }
+
+/* ----- In-progress state ----- */
 
 .upload-spinner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: var(--color-text-secondary);
+  gap: var(--s-3);
+  color: var(--ink-2);
+  font-size: 14px;
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--surface-sunken);
+  border-top-color: var(--brand);
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: upload-spin 0.85s linear infinite;
 }
 
-@keyframes spin {
+@keyframes upload-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
 .upload-error {
-  padding: 12px 16px;
-  background: #fef2f2;
-  color: var(--color-danger);
-  border-radius: var(--radius);
-  font-size: 0.9rem;
-  border: 1px solid #fecaca;
+  padding: var(--s-3) var(--s-4);
+  background: var(--rose-soft);
+  color: var(--rose-ink);
+  border: 1px solid rgba(244, 63, 94, 0.18);
+  border-radius: var(--r-md);
+  font-size: 13px;
 }
 
+/* ----- Job in flight ----- */
+
+.upload-job {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-card);
+}
+
+.job-filename {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ----- Result card (success / failed terminal) ----- */
+
 .upload-result {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--s-5) var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.upload-result-failed {
+  border-color: rgba(244, 63, 94, 0.22);
 }
 
 .result-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: var(--s-3);
+  flex-wrap: wrap;
 }
 
 .result-header h3 {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.doc-type-badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  background: #e0e7ff;
-  color: #3730a3;
-}
-
-.doc-type-badge.medical_record {
-  background: #d1fae5;
-  color: #065f46;
-}
-.doc-type-badge.legal_filing {
-  background: #fef3c7;
-  color: #92400e;
-}
-.doc-type-badge.billing {
-  background: #ede9fe;
-  color: #5b21b6;
-}
-.doc-type-badge.correspondence {
-  background: #dbeafe;
-  color: #1e40af;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-right: auto;
+  letter-spacing: -0.005em;
 }
 
 .result-actions {
-  margin-top: 16px;
-}
-
-/* In-flight job row (shown between upload-accept and terminal state). */
-.upload-job {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  font-size: 0.9rem;
-}
-
-.job-filename {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.upload-result-failed {
-  border-color: #fecaca;
-}
-
-.btn-primary {
-  padding: 10px 20px;
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: 7px;
-  font-size: 0.88rem;
-  font-weight: 500;
-  transition: background 0.15s ease;
-}
-
-.btn-primary:hover {
-  background: var(--color-primary-hover);
+  gap: var(--s-2);
+  margin-top: var(--s-2);
 }

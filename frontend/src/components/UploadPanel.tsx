@@ -119,11 +119,29 @@ export default function UploadPanel({ onComplete }: Props) {
           </div>
         ) : (
           <>
-            <div className="drop-icon">PDF</div>
+            <div className="drop-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+                <path
+                  d="M7 4h7l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+                <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.5" />
+                <path
+                  d="M9 13h6M9 16h4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
             <p className="drop-text">
-              Drop a PDF here or <span className="link">browse</span>
+              Drop a PDF here, or <span className="link">browse files</span>
             </p>
-            <p className="drop-hint">Text-based PDFs up to 20 MB</p>
+            <p className="drop-hint">
+              Text-based PDFs up to 20&nbsp;MB. Scans not yet supported.
+            </p>
           </>
         )}
       </div>
@@ -151,7 +169,7 @@ export default function UploadPanel({ onComplete }: Props) {
           </p>
           <div className="result-actions">
             <button
-              className="btn-primary"
+              className="btn btn-primary"
               onClick={() => {
                 setJob(null);
                 completedFor.current = null;
@@ -177,7 +195,7 @@ export default function UploadPanel({ onComplete }: Props) {
           </div>
           {doc.entities && <EntityBadges entities={doc.entities} />}
           <div className="result-actions">
-            <button className="btn-primary" onClick={onComplete}>
+            <button className="btn btn-primary" onClick={onComplete}>
               View all documents
             </button>
           </div>

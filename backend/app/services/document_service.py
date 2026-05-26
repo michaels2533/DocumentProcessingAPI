@@ -111,6 +111,21 @@ async def get_document(db: AsyncSession, doc_id: UUID) -> Document | None:
     return await db.get(Document, doc_id)
 
 
+async def delete_document(db: AsyncSession, doc_id: UUID) -> bool:
+    """Permanently remove a document row.
+
+    Returns True if a row was deleted, False if no document with that id
+    existed. The caller is responsible for committing the session so the
+    delete is durable.
+    """
+    doc = await db.get(Document, doc_id)
+    if doc is None:
+        return False
+    await db.delete(doc)
+    await db.flush()
+    return True
+
+
 async def list_documents(
     db: AsyncSession, skip: int = 0, limit: int = 20
 ) -> list[Document]:

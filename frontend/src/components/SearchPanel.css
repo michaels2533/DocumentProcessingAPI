@@ -1,68 +1,286 @@
+/* ============================================================
+   SearchPanel — search form + ranked results.
+   ============================================================ */
+
 .search-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--s-6);
 }
 
-.search-form {
+/* ----- Form card ----- */
+
+.search-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--s-6);
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--s-4);
 }
 
-.search-input {
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   flex: 1;
-  min-width: 200px;
-  padding: 10px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: 7px;
-  font-size: 0.9rem;
-  outline: none;
-  transition: border-color 0.15s ease;
+  min-width: 0;
 }
 
-.search-input:focus {
-  border-color: var(--color-primary);
+.field-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
-.search-filter {
-  padding: 10px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: 7px;
-  font-size: 0.9rem;
-  background: var(--color-surface);
-  outline: none;
+.field-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
+
+.field-icon {
+  position: absolute;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.field-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--s-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 120ms ease, background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.field-input::placeholder {
+  color: var(--ink-muted);
+}
+
+.field-input:hover {
+  border-color: var(--border-strong);
+}
+
+.field-input:focus {
+  border-color: var(--brand);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* The hero query input — taller, with the icon offset */
+.field-primary .field-input-primary {
+  height: 52px;
+  padding-left: 42px;
+  font-size: 15px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: var(--s-3);
+}
+
+@media (max-width: 720px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Custom select chrome — native select with a styled caret */
+.select-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.field-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--s-7);
+  cursor: pointer;
+}
+
+.select-caret {
+  position: absolute;
+  right: 14px;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.search-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+}
+
+.search-hint {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   Search results — numbered, with similarity / FTS chips.
+   ============================================================ */
 
 .search-results {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-3);
 }
 
-.similarity-badge {
-  margin-left: auto;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-success);
-  background: #ecfdf5;
-  padding: 2px 8px;
-  border-radius: 999px;
+.result-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
 }
 
-.fts-rank-badge {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #1d4ed8;
-  background: #eff6ff;
-  padding: 2px 8px;
-  border-radius: 999px;
+.result-row {
+  display: grid;
+  grid-template-columns: 36px 4px minmax(0, 1fr) 24px;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, transform 120ms ease,
+    background 120ms ease;
+  overflow: hidden;
 }
 
-.similarity-badge + .fts-rank-badge {
-  margin-left: 6px;
+.result-row:hover {
+  border-color: var(--border-emphasis);
+  background: var(--surface);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
 }
 
-.fts-rank-badge:not(.similarity-badge + .fts-rank-badge) {
-  margin-left: auto;
+.result-row.opening {
+  opacity: 0.55;
+}
+
+.result-rank {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  border-right: 1px solid var(--border);
+}
+
+.result-stripe {
+  background: currentColor;
+  opacity: 0.9;
+}
+.result-stripe.stripe-medical_record { color: var(--tab-medical); }
+.result-stripe.stripe-legal_filing { color: var(--tab-legal); }
+.result-stripe.stripe-billing { color: var(--tab-billing); }
+.result-stripe.stripe-correspondence { color: var(--tab-correspondence); }
+.result-stripe.stripe-other { color: var(--tab-other); }
+
+.result-body {
+  padding: var(--s-3) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.result-head-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.result-name {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--ink);
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 7px;
+  border-radius: var(--r-pill);
+  background: var(--brand-softer);
+  color: var(--brand-ink);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid rgba(109, 93, 252, 0.15);
+}
+
+.meta-chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+.meta-chip-label {
+  color: currentColor;
+  opacity: 0.65;
+  font-weight: 500;
+}
+
+.meta-chip-amber {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.meta-chip-amber .meta-chip-dot {
+  background: var(--amber);
+}
+
+.result-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  padding-right: var(--s-3);
+}
+
+.result-arrow svg {
+  width: 14px;
+  height: 14px;
+}
+
+.result-row:hover .result-arrow {
+  color: var(--brand);
 }

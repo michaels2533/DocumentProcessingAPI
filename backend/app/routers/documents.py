@@ -1,11 +1,12 @@
 from uuid import UUID
 
 from arq.connections import ArqRedis
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
 from app.core.queue import get_arq_pool
+from app.core.rate_limit import limiter
 from app.schemas.document import (
     DocumentJobResponse,
     DocumentResponse,
@@ -15,6 +16,7 @@ from app.schemas.document import (
     SearchResponse,
 )
 from app.services.document_service import (
+    delete_document,
     enqueue_document,
     get_document,
     list_documents,
@@ -35,7 +37,9 @@ _PROCESS_DOCUMENT_TASK = "process_document_job"
     response_model=DocumentJobResponse,
     status_code=202,
 )
+@limiter.limit("3/hour")
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db_session),
     arq: ArqRedis = Depends(get_arq_pool),
@@ -110,10 +114,28 @@ async def get_document_by_id(
     )
 
 
-@router.post("/search", response_model=SearchResponse)
-async def search(
-    request: SearchRequest,
+@router.delete("/{doc_id}", status_code=204, response_class=Response)
+async def delete_document_by_id(
+    doc_id: UUID,
     db: AsyncSession = Depends(get_db_session),
 ):
-    results = await search_documents(db, request)
+    """Permanently delete a document. Idempotent in spirit but returns 404
+    on a missing id so the client can distinguish 'already gone' from
+    'never existed' if it cares to.
+    """
+    deleted = await delete_document(db, doc_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    await db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/search", response_model=SearchResponse)
+@limiter.limit("3/hour")
+async def search(
+    request: Request,
+    search_request: SearchRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
+    results = await search_documents(db, search_request)
     return SearchResponse(results=results)

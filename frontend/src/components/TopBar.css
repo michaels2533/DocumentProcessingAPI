@@ -1,0 +1,125 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  height: var(--topbar-h);
+  padding: 0 var(--s-8);
+  border-bottom: 1px solid var(--border);
+  background: var(--canvas);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+@media (max-width: 1100px) {
+  .topbar {
+    padding: 0 var(--s-5);
+  }
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    padding: 0 var(--s-4);
+  }
+}
+
+.topbar-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 13.5px;
+  line-height: 1.2;
+}
+
+.crumb-eyebrow {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.crumb-divider {
+  color: var(--ink-muted);
+}
+
+.crumb-active {
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+.topbar-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* Quick-search affordance — looks like an input, behaves like a button.
+   Mirrors the calm "search hint" you see on Linear / Vercel. */
+.topbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 36px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 13px;
+  min-width: 240px;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.topbar-search:hover {
+  border-color: var(--border-emphasis);
+  color: var(--ink-2);
+}
+
+.topbar-search svg {
+  width: 14px;
+  height: 14px;
+}
+
+.topbar-search span {
+  flex: 1;
+  text-align: left;
+}
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+@media (max-width: 720px) {
+  .topbar-search span,
+  .topbar-search .kbd {
+    display: none;
+  }
+  .topbar-search {
+    min-width: 0;
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+}

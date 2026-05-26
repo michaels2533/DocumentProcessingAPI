@@ -1,0 +1,298 @@
+/* ============================================================
+   LibraryOverview — hero of the library view.
+   Two cards side-by-side (donut + pipeline), like the
+   reference Quicken / Cake dashboards.
+   ============================================================ */
+
+.library-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: var(--s-5);
+}
+
+@media (max-width: 1100px) {
+  .library-overview {
+    grid-template-columns: 1fr;
+  }
+}
+
+.overview-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.overview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+
+.overview-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.overview-sub {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+
+.overview-period {
+  font-size: 12px;
+  color: var(--ink-muted);
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+/* ----- Distribution body: donut + legend ----- */
+
+.overview-body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--s-7);
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .overview-body {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: var(--s-5);
+  }
+}
+
+.donut-wrap {
+  position: relative;
+  width: 168px;
+  height: 168px;
+}
+
+.donut {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.donut-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.donut-value {
+  font-size: 38px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.05;
+  margin-top: 2px;
+  letter-spacing: -0.02em;
+}
+
+.donut-caption {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+/* ----- Legend ----- */
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.legend-row {
+  display: grid;
+  grid-template-columns: 10px auto 1fr 32px;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.legend-label {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.legend-bar {
+  display: block;
+  height: 6px;
+  background: var(--surface-sunken);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.legend-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.legend-count {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Pipeline card ----- */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-3);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.stat-value {
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.stat-ready { border-color: rgba(16, 185, 129, 0.22); background: var(--mint-soft); }
+.stat-ready .stat-value { color: var(--mint-ink); }
+.stat-ready .stat-label { color: var(--mint-ink); }
+
+.stat-processing { border-color: rgba(14, 165, 233, 0.22); background: var(--sky-soft); }
+.stat-processing .stat-value { color: var(--sky-ink); }
+.stat-processing .stat-label { color: var(--sky-ink); }
+
+.stat-failed { border-color: rgba(244, 63, 94, 0.22); background: var(--rose-soft); }
+.stat-failed .stat-value { color: var(--rose-ink); }
+.stat-failed .stat-label { color: var(--rose-ink); }
+
+.overview-tip {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--brand-softer);
+  color: var(--brand-ink);
+  font-size: 12.5px;
+  line-height: 1.5;
+  border: 1px solid rgba(109, 93, 252, 0.14);
+}
+
+.overview-tip em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.overview-tip-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--brand);
+  margin-top: 1px;
+}
+.overview-tip-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ============================================================
+   Empty state — replaces the overview when 0 docs exist.
+   ============================================================ */
+
+.library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--s-10) var(--s-5);
+  gap: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-card);
+}
+
+.library-empty-mark {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--s-2);
+}
+
+.library-empty-mark svg {
+  width: 32px;
+  height: 32px;
+}
+
+.library-empty-title {
+  font-size: 28px;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.library-empty-sub {
+  max-width: 440px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.library-empty-actions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}

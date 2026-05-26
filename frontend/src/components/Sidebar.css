@@ -1,0 +1,260 @@
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  border-right: 1px solid var(--border);
+  background: var(--canvas);
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-5) var(--s-3) var(--s-4);
+  gap: var(--s-5);
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+/* ----- Brand ----- */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-3);
+}
+
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--brand);
+  color: var(--ink-on-brand);
+}
+
+.brand-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.brand-words {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.brand-name {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.brand-tag {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+/* ----- Primary nav ----- */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: 8px var(--s-3);
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.nav-item:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--ink);
+}
+
+.nav-item.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--border-strong),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+.nav-item.active .nav-icon {
+  color: var(--brand);
+}
+
+.nav-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ----- Section blocks ----- */
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: 0 var(--s-3);
+}
+
+.sidebar-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.sidebar-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.sidebar-section-count {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+/* ----- Type index (filing-cabinet style colored dots) ----- */
+.type-index {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.type-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 6px var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+}
+
+.type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  justify-self: center;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.type-dot.type-medical_record { color: var(--tab-medical); }
+.type-dot.type-legal_filing { color: var(--tab-legal); }
+.type-dot.type-billing { color: var(--tab-billing); }
+.type-dot.type-correspondence { color: var(--tab-correspondence); }
+.type-dot.type-other { color: var(--tab-other); }
+
+.type-name {
+  font-size: 13px;
+}
+
+.type-count {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* ----- Recent docs ----- */
+.sidebar-recent {
+  flex: 1;
+  min-height: 0;
+}
+
+.recent-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  margin: 0 calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  padding: 6px var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-align: left;
+  transition: background 100ms ease;
+}
+
+.recent-item:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--ink);
+}
+
+.recent-item.loading {
+  opacity: 0.55;
+}
+
+.recent-stripe {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.recent-stripe.stripe-medical_record { color: var(--tab-medical); }
+.recent-stripe.stripe-legal_filing { color: var(--tab-legal); }
+.recent-stripe.stripe-billing { color: var(--tab-billing); }
+.recent-stripe.stripe-correspondence { color: var(--tab-correspondence); }
+.recent-stripe.stripe-other { color: var(--tab-other); }
+
+.recent-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-empty {
+  font-size: 12px;
+  color: var(--ink-muted);
+  padding: 4px var(--s-2);
+}
+
+/* ----- Foot ----- */
+.sidebar-foot {
+  margin-top: auto;
+  padding: var(--s-2) var(--s-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.foot-version {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
