@@ -17,7 +17,7 @@ frontend/dist/
 # IDE
 .vscode/
 .idea/
-.cursor/
+cursor/
 
 # Uploads
 backend/uploads/
