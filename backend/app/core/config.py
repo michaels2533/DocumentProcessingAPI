@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     # because the embedding model is locked to OpenAI at deploy time.
     openai_api_key: str
     database_url: str = "postgresql+asyncpg://docproc:docproc_secret@db:5432/docproc"
+    # Set to True in production (e.g. Render managed Postgres requires SSL).
+    # Leave False for local Docker Compose where the bundled Postgres has no SSL.
+    db_ssl: bool = False
 
     # ------------------------------------------------------------------ #
     # Background processing (Arq + Redis)

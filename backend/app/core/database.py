@@ -19,7 +19,11 @@ class Base(DeclarativeBase):
 
 class DatabaseSessionManager:
     def __init__(self, host: str, engine_kwargs: dict[str, Any] = {}):
-        self._engine = create_async_engine(host, **engine_kwargs, ssl="require")
+        # asyncpg takes SSL via `connect_args`, NOT as a top-level engine kwarg.
+        # Gated on settings.db_ssl so local Docker (no SSL) keeps working.
+        if settings.db_ssl:
+            engine_kwargs = {**engine_kwargs, "connect_args": {"ssl": "require"}}
+        self._engine = create_async_engine(host, **engine_kwargs)
         self._sessionmaker = async_sessionmaker(
             autocommit=False,
             expire_on_commit=False,

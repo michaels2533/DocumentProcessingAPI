@@ -69,10 +69,14 @@ async def run_migrations_online():
 
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
+    # Render's managed Postgres requires SSL; local Docker doesn't have it.
+    # Gated on the same setting the app uses so behaviour stays consistent.
+    connect_args = {"ssl": "require"} if settings.db_ssl else {}
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     # Opens a connection and bridges into a sync context.
