@@ -16,4 +16,4 @@ pytest
 pytest-asyncio
 httpx==0.28.1
 slowapi==0.1.9
-psycopg2
+psycopg2-binary==2.9.10
