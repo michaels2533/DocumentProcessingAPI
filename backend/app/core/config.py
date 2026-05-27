@@ -1,6 +1,12 @@
 from functools import lru_cache
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+# libpq/psycopg2-only query params that asyncpg's `connect()` rejects.
+# We strip these from the URL; SSL is configured separately via `connect_args`.
+_LIBPQ_ONLY_PARAMS = {"sslmode", "sslcert", "sslkey", "sslrootcert", "channel_binding"}
 
 
 class Settings(BaseSettings):
@@ -52,6 +58,31 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 1536
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalize_database_url(cls, v: str) -> str:
+        """Make Render/Heroku-style URLs work with asyncpg.
+
+        Three normalizations:
+        1. `postgres://` → `postgresql://` (Render/Heroku legacy scheme).
+        2. `postgresql://` → `postgresql+asyncpg://` so SQLAlchemy picks the async driver.
+        3. Strip libpq-only query params (e.g. `sslmode=require`) that asyncpg rejects.
+           SSL is configured separately via `connect_args` when `db_ssl=True`.
+        """
+        if not isinstance(v, str) or not v:
+            return v
+        if v.startswith("postgres://"):
+            v = "postgresql://" + v[len("postgres://") :]
+        if v.startswith("postgresql://"):
+            v = "postgresql+asyncpg://" + v[len("postgresql://") :]
+
+        parts = urlsplit(v)
+        if parts.query:
+            kept = [(k, val) for k, val in parse_qsl(parts.query, keep_blank_values=True)
+                    if k not in _LIBPQ_ONLY_PARAMS]
+            v = urlunsplit(parts._replace(query=urlencode(kept)))
+        return v
 
 
 @lru_cache
