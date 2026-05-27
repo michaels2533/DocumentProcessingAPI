@@ -12,12 +12,18 @@ export default defineConfig(({mode}) => {
     server: {
       host: true,
       port: 5173,
+      allowedHosts: ["docproc-frontend.onrender.com", ".onrender.com"],
       proxy: {
         "/api": {
           target: env.VITE_API_TARGET,
           changeOrigin: true,
         },
       },
+    },
+    preview: {
+      host: true,
+      port: 5173,
+      allowedHosts: ["docproc-frontend.onrender.com", ".onrender.com"],
     },
   }
   });
