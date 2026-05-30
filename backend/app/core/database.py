@@ -23,6 +23,18 @@ class DatabaseSessionManager:
         # Gated on settings.db_ssl so local Docker (no SSL) keeps working.
         if settings.db_ssl:
             engine_kwargs = {**engine_kwargs, "connect_args": {"ssl": "require"}}
+        # Long-running workers sit idle between jobs; managed Postgres / proxies
+        # silently drop idle TCP connections, after which the next checkout
+        # gets a dead socket and the session enters an invalid-transaction
+        # state (PendingRollbackError). pool_pre_ping issues a cheap SELECT 1
+        # before handing out a connection, and pool_recycle forces SQLAlchemy
+        # to rotate connections older than the recycle window so we never
+        # bump up against typical 30-60 minute server-side idle timeouts.
+        engine_kwargs = {
+            "pool_pre_ping": True,
+            "pool_recycle": 400,
+            **engine_kwargs,
+        }
         self._engine = create_async_engine(host, **engine_kwargs)
         self._sessionmaker = async_sessionmaker(
             autocommit=False,
